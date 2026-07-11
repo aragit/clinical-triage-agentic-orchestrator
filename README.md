@@ -1,75 +1,115 @@
-# Clinical Triage Agentic Orchestrator
+<p align="center">
+  <h1 align="center">Clinical Triage Agentic Orchestrator</h1>
+  <p align="center">An enterprise-grade, localized Neuro-Symbolic Agentic AI Orchestrator for high-stakes clinical triage.</p>
+</p>
 
-[![Production Grade](https://img.shields.io/badge/Production--Grade-Verified-brightgreen.svg)](#)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Local Architecture: CPU Native](https://img.shields.io/badge/Local--Architecture-CPU--Native-blue.svg)](#)
-[![Latency: Sub--30ms Emergency Bypass](https://img.shields.io/badge/Latency-Sub--30ms-orange.svg)](#)
-
-An enterprise-grade, localized **Neuro-Symbolic Agentic AI Orchestrator** designed for high-stakes clinical triage. Operating entirely on consumer-grade hardware (Intel i5 CPU, 16GB RAM) without external cloud APIs or GPU dependencies, this system implements a deterministic-to-probabilistic execution boundary. 
-
-By combining an isolated policy guardrail, real-time medical ontology extraction (**SNOMED CT / ICD-10-CM**), an in-memory hybrid vector database, an atomic Finite State Machine (FSM), and grammar-constrained LLM decoding, this architecture guarantees safety, eliminates hallucination risks for critical presentations, and maintains a zero-latency fast-path for medical emergencies.
+<p align="center">
+  <img src="https://img.shields.io/badge/Production--Grade-Verified-brightgreen.svg" alt="Production Grade">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Local--Architecture-CPU--Native-blue.svg" alt="Local Architecture: CPU Native">
+  <img src="https://img.shields.io/badge/Latency-Sub--30ms-orange.svg" alt="Latency: Sub-30ms">
+</p>
 
 ---
 
-## Architectural Blueprint & Data Flow
+Operating entirely on consumer-grade hardware (Intel i5 CPU, 16GB RAM) without external cloud APIs or GPU dependencies, this system implements a **deterministic-to-probabilistic execution boundary**. By combining an isolated policy guardrail, real-time medical ontology extraction (**SNOMED CT / ICD-10-CM**), an in-memory hybrid vector database, an atomic Finite State Machine (FSM), and grammar-constrained LLM decoding, this architecture guarantees safety, eliminates hallucination risks for critical presentations, and maintains a zero-latency fast-path for medical emergencies.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Backend Framework** | FastAPI + Uvicorn |
+| **Frontend / Observability** | Streamlit |
+| **LLM Inference** | llama-cpp-python (local GGUF) |
+| **Structured Output** | instructor + Pydantic |
+| **Model** | Gemma 3n E4B (Q4_K_M quantized) |
+| **Vector Store** | Qdrant (in-memory, Hybrid BM25 + Dense + RRF) |
+| **Policy Engine** | Custom OPA-style deterministic guardrails |
+| **Clinical NLP** | SNOMED CT / ICD-10-CM entity extraction |
+| **State Management** | Atomic FSM (7 nodes, session-scoped) |
+| **Async Processing** | FastAPI BackgroundTasks |
+| **Containerization** | Docker + Docker Compose |
+| **Language** | Python 3.12+ |
+
+---
+
+## Architecture & Data Flow
 
 The system employs a **dual-pathway execution pattern** (Fast-Path vs. Slow-Path) to process clinical input safely and efficiently:
 
-              [ Patient Input via Streamlit UI / Webhook ]
-                                   │
-                                   ▼
-                   ┌───────────────────────────────┐
-                   │   Step A: Perception Ingestion│
-                   └───────────────┬───────────────┘
-                                   │
-                                   ▼
-                   ┌───────────────────────────────┐
-                   │   Step B: OPA Policy Engine   │
-                   └───────────────┬───────────────┘
-                                   │
-        ┌──────────────────────────┴──────────────────────────┐
-        ▼ [CRITICAL EMERGENCY DETECTED]                       ▼ [NON-EMERGENT]
-  【 FAST-PATH: SHORT-CIRCUIT 】                         【 SLOW-PATH: COGNITIVE LOOP 】
-        │                                                     │
-        ▼                                                     ▼
-┌───────────────────────────────┐                 ┌───────────────────────────────┐
-│ Step D: Ontology Extraction   │                 │ Step C: Context Retrieval     │
-│ (SNOMED CT / ICD-10 Coding)   │                 │ (Qdrant Hybrid Dense+BM25+RRF)│
-└───────────────┬───────────────┘                 └───────────────┬───────────────┘
-│                                                 │
-▼                                                 ▼
-┌───────────────────────────────┐                 ┌───────────────────────────────┐
-│ Step F: Atomic State Persistence│               │ Step D: Ontology Extraction   │
-│ (Transition to ESCALATION)     │                 │ (Extract Clinical Present.)   │
-└───────────────┬───────────────┘                 └───────────────┬───────────────┘
-│                                                 │
-▼                                                 ▼
-┌───────────────────────────────┐                 ┌───────────────────────────────┐
-│     Immediate Output Response │                 │ Step E: Structured Cognition  │
-│     Latency: < 30ms           │                 │ (llama-cpp-server + Gemma 3n) │
-└───────────────────────────────┘                 │ (instructor Grammar Forcing)  │
-└───────────────┬───────────────┘
-│
-▼
-┌───────────────────────────────┐
-│ Step F: Atomic State Move     │
-│ (Update FSM Triage Decision)  │
-└───────────────┬───────────────┘
-│
-▼
-┌───────────────────────────────┐
-│     Structured Output JSON    │
-│     Latency: ~1.2s - 2.5s     │
-└───────────────────────────────┘
+```
+                        ┌─────────────────────────────┐
+                        │   Patient Input              │
+                        │   (Streamlit UI / Webhook)   │
+                        └──────────────┬──────────────┘
+                                       │
+                                       ▼
+                        ┌─────────────────────────────┐
+                        │   Step A: Perception         │
+                        │   Episodic History Retrieval │
+                        └──────────────┬──────────────┘
+                                       │
+                                       ▼
+                        ┌─────────────────────────────┐
+                        │   Step B: OPA Policy Engine  │
+                        │   Deterministic Guardrails   │
+                        └──────────────┬──────────────┘
+                                       │
+                 ┌─────────────────────┴─────────────────────┐
+                 │                                           │
+                 ▼ EMERGENCY                                 ▼ NON-EMERGENT
+    ┌─────────────────────────────┐           ┌─────────────────────────────┐
+    │   FAST-PATH: SHORT-CIRCUIT  │           │   SLOW-PATH: COGNITIVE LOOP │
+    └──────────────┬──────────────┘           └──────────────┬──────────────┘
+                   │                                         │
+                   ▼                                         ▼
+    ┌─────────────────────────────┐           ┌─────────────────────────────┐
+    │  Step D: Ontology Extraction│           │  Step C: Context Retrieval  │
+    │  SNOMED CT / ICD-10 Coding  │           │  Qdrant Hybrid Dense+BM25   │
+    └──────────────┬──────────────┘           └──────────────┬──────────────┘
+                   │                                         │
+                   ▼                                         ▼
+    ┌─────────────────────────────┐           ┌─────────────────────────────┐
+    │  Step F: State Persistence  │           │  Step D: Ontology Extraction│
+    │  Transition to ESCALATION   │           │  Extract Clinical Entities  │
+    └──────────────┬──────────────┘           └──────────────┬──────────────┘
+                   │                                         │
+                   ▼                                         ▼
+    ┌─────────────────────────────┐           ┌─────────────────────────────┐
+    │  Immediate Response         │           │  Step E: Structured Cognition│
+    │  Latency: < 30ms            │           │  llama-cpp + Gemma 3n        │
+    └─────────────────────────────┘           │  instructor Grammar Forcing  │
+                                              └──────────────┬──────────────┘
+                                                             │
+                                                             ▼
+                                              ┌─────────────────────────────┐
+                                              │  Step F: FSM State Move     │
+                                              │  Triage Decision            │
+                                              └──────────────┬──────────────┘
+                                                             │
+                                                             ▼
+                                              ┌─────────────────────────────┐
+                                              │  Structured Output JSON     │
+                                              │  Latency: ~1.2s - 2.5s      │
+                                              └─────────────────────────────┘
+```
 
+---
 
-### Core Subsystems
+## Core Subsystems
 
 1. **Perception Layer (`src/api/` & `src/ui/`)**: A high-performance FastAPI backend paired with a comprehensive Streamlit observability dashboard. Implements asynchronous webhook decoupling via FastAPI `BackgroundTasks` to achieve low-latency (<150ms) HTTP network acknowledgments, protecting against connection drops in consumer channels like Dialogflow CX.
+
 2. **Deterministic Guardrails (`src/core/opa_policies.py`)**: An isolated rule engine written in strict adherence to Open Policy Agent concepts. It scans text for acute clinical triggers (cardiovascular, respiratory, neurological, or psychiatric distress) prior to hitting the LLM tier.
+
 3. **Medical Ontology Engine (`src/tools/healthcare_nl.py`)**: A deterministic terminology extractor mapping presentation variables to standardized healthcare vocabularies (**SNOMED CT Concepts** and **ICD-10-CM Codes**). It guarantees structured downstream tracking packets, even during emergency overrides.
+
 4. **Episodic Memory Store (`src/memory/episodic_state.py`)**: An atomic Finite State Machine (FSM) managing 7 distinct clinical state nodes (`intake`, `symptom_extraction`, `guideline_lookup`, `risk_assessment`, `triage_decision`, `escalation`, `resolved`). It prevents conversational state drift and enforces structural integrity over session lifetimes.
+
 5. **Context Memory Engine (`src/memory/vector_store.py`)**: An in-memory Qdrant client implementing **Hybrid Search** (Dense Vector Embedding simulation + Sparse BM25 text tracking) joined via Reciprocal Rank Fusion (RRF) to pull clinical protocols in real time.
+
 6. **Structured Cognition Loop (`src/cognition/triage_agent.py`)**: The probabilistic core that wraps a local `llama-cpp-python` engine (running a quantized `Gemma 3n E4B` model) using the `instructor` framework. It utilizes context-free grammars to force pure JSON extraction into a typed Pydantic schema containing deep Chain-of-Thought (`DiagnosticCoT`) fields.
 
 ---
@@ -132,7 +172,7 @@ clinical-triage-agentic-orchestrator/
 ├── docker-compose.yml          # Local infra stack orchestration
 ├── requirements.txt            # Dependency manifest
 ├── setup.sh                    # Automation environment and dependency compiler
-├── SPEC.md                     # Technical System Specifications
+├── README.md                   # Project documentation
 └── src/
     ├── __init__.py
     ├── core/
@@ -263,20 +303,16 @@ Access the systems via the following local allocations:
 
 ## Engineering Principles
 
-### The Safe-Fail Ingestion Boundary
-An isolated, deterministic policy engine (mirroring Open Policy Agent concepts) intercepts requests prior to reaching the probabilistic LLM layer. High-risk vectors are instantly mitigated with 0% chance of model hallucination.
+1. **The Safe-Fail Ingestion Boundary** — An isolated, deterministic policy engine (mirroring Open Policy Agent concepts) intercepts requests prior to reaching the probabilistic LLM layer. High-risk vectors are instantly mitigated with 0% chance of model hallucination.
 
-### Asynchronous Webhook Decoupling
-To accommodate strict real-time third-party engine constraints (like Dialogflow's <5-second limits), the intake transaction is decoupled via FastAPI `BackgroundTasks`. The system immediately provides a low-latency acknowledgment to the network while processing complex local data graphs out-of-band.
+2. **Asynchronous Webhook Decoupling** — To accommodate strict real-time third-party engine constraints (like Dialogflow's <5-second limits), the intake transaction is decoupled via FastAPI `BackgroundTasks`. The system immediately provides a low-latency acknowledgment to the network while processing complex local data graphs out-of-band.
 
-### Structured Grammar Forcing
-A reliable neuro-symbolic bridge using `instructor` over local `llama-cpp-python` setups. This configuration forces open-source quantized models (like Gemma 3n) to strictly follow typed Pydantic structures on consumer CPU limits.
+3. **Structured Grammar Forcing** — A reliable neuro-symbolic bridge using `instructor` over local `llama-cpp-python` setups. This configuration forces open-source quantized models (like Gemma 3n) to strictly follow typed Pydantic structures on consumer CPU limits.
 
-### Resilient Local State Failure Routing
-Strict fallback mechanisms ensure that if structural parsing errors occur during low-compute generation windows, the system automatically over-triages to prevent critical health downgrades.
+4. **Resilient Local State Failure Routing** — Strict fallback mechanisms ensure that if structural parsing errors occur during low-compute generation windows, the system automatically over-triages to prevent critical health downgrades.
 
 ---
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the **MIT License**. You are free to use, modify, and distribute this software. See the [LICENSE](LICENSE) file for full details.
