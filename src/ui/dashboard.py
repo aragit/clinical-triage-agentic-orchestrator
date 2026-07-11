@@ -89,7 +89,7 @@ def poll_for_result(session_id: str, max_wait: float = 180.0) -> dict | None:
 st.title("Clinical Triage Orchestrator")
 st.caption(f"Session: `{st.session_state.session_id}`")
 
-col_chat, col_trace, col_json = st.columns([2, 2, 2])
+col_chat, col_trace = st.columns([1, 1])
 
 # ═══════════════════════════════════════════════════════════════════
 # LEFT COLUMN: Patient Chat
@@ -301,13 +301,9 @@ with col_trace:
     else:
         st.info("Session not found on server. Send a message to create one.")
 
-# ═══════════════════════════════════════════════════════════════════
-# THIRD COLUMN: Raw JSON
-# ═══════════════════════════════════════════════════════════════════
-
-with col_json:
-    st.subheader("Raw Result JSON")
-    if st.session_state.last_result:
-        st.json(st.session_state.last_result)
-    else:
-        st.info("No result yet — send a message to start the pipeline")
+    # ── Raw JSON dump ───────────────────────────────────────────────
+    with st.expander("Raw result JSON", expanded=False):
+        if st.session_state.last_result:
+            st.json(st.session_state.last_result)
+        else:
+            st.code("No result yet")
