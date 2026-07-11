@@ -208,7 +208,7 @@ with col_trace:
 
         # FSM visualization
         fsm_steps = ["intake", "symptom_extraction", "guideline_lookup",
-                      "risk_assessment", "triage_decision"]
+                      "risk_assessment", "triage_decision", "escalation", "resolved"]
         try:
             current_idx = fsm_steps.index(current)
             for i, step in enumerate(fsm_steps):
@@ -226,9 +226,19 @@ with col_trace:
         # ── Extracted Entities ──────────────────────────────────────
         st.markdown("### SNOMED / ICD-10 Entities")
         result = st.session_state.last_result
-        if result and "steps" in result:
-            executor = result["steps"].get("D_executor", {})
-            entities = executor.get("entities", [])
+        if result:
+            resp = result.get("response", {})
+
+            # Emergency bypass stores entities in response.extracted_entities
+            # Normal path stores them in steps.D_executor
+            entities = []
+            extracted = resp.get("extracted_entities", {})
+            if extracted:
+                entities = extracted.get("entities", [])
+            elif "steps" in result:
+                executor = result["steps"].get("D_executor", {})
+                entities = executor.get("entities", [])
+
             if entities:
                 for ent in entities:
                     with st.expander(f"**{ent['term']}** ({ent['category']})", expanded=True):
@@ -243,7 +253,9 @@ with col_trace:
 
             # ── Diagnostic CoT Reasoning ────────────────────────────
             st.markdown("### LLM Diagnostic CoT")
-            cognition = result["steps"].get("E_cognition", {})
+            cognition = {}
+            if "steps" in result:
+                cognition = result["steps"].get("E_cognition", {})
             if cognition and "error" not in cognition:
                 observations = cognition.get("clinical_observations", [])
                 rationale = cognition.get("step_by_step_rationale", [])
@@ -264,6 +276,8 @@ with col_trace:
                 meta_cols[2].metric("Confidence", f"{cognition.get('confidence', 0):.0%}")
             elif cognition.get("error"):
                 st.warning(f"LLM step error: {cognition['error']}")
+            elif resp.get("llm_bypassed"):
+                st.info("LLM bypassed — emergency rules triggered, no CoT reasoning needed")
             else:
                 st.info("No LLM reasoning yet — send a message to trigger the pipeline")
 
@@ -275,10 +289,13 @@ with col_trace:
             st.metric("Total Latency", f"{latency:.1f}ms")
 
             # Step-level breakdown if available
-            guardrail = result["steps"].get("B_guardrail", {})
-            memory = result["steps"].get("C_memory", {})
-            st.markdown(f"**Guardrail rules fired:** {', '.join(guardrail.get('triggered_rules', [])) or 'none'}")
-            st.markdown(f"**Guidelines matched:** {memory.get('guidelines_found', 0)}")
+            if "steps" in result:
+                guardrail = result["steps"].get("B_guardrail", {})
+                memory = result["steps"].get("C_memory", {})
+                st.markdown(f"**Guardrail rules fired:** {', '.join(guardrail.get('triggered_rules', [])) or 'none'}")
+                st.markdown(f"**Guidelines matched:** {memory.get('guidelines_found', 0)}")
+            elif resp.get("triggered_rules"):
+                st.markdown(f"**Guardrail rules fired:** {', '.join(resp.get('triggered_rules', [])) or 'none'}")
         else:
             st.info("No trace data yet — send a message to start the pipeline")
     else:

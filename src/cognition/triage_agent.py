@@ -192,9 +192,29 @@ class TriageAgent:
         result["steps"]["B_guardrail"] = guardrail_result.to_dict()
 
         if guardrail_result.emergency_override:
-            # EMERGENCY BYPASS — skip LLM entirely
-            result["response"] = self._emergency_response(guardrail_result)
+            # EMERGENCY BYPASS — skip LLM, but still extract entities for clinical tracking
+            extraction: ExtractionResult = self._extractor.extract(user_input)
+            result["steps"]["D_executor"] = extraction.to_dict()
+
+            emergency_resp = self._emergency_response(guardrail_result)
+            emergency_resp["extracted_entities"] = extraction.to_dict()
+            result["response"] = emergency_resp
             result["state_transition"] = "escalation"
+
+            # Persist state transition + conversation turns (Fix A)
+            try:
+                self._episodic.transition(session_id, TriageState.ESCALATION)
+                self._episodic.append_turn(session_id, "user", user_input)
+                self._episodic.append_turn(
+                    session_id,
+                    "assistant",
+                    str(emergency_resp),
+                    metadata={"emergency_bypass": True},
+                )
+            except StateTransitionError as exc:
+                logger.warning("Emergency state transition failed: %s", exc)
+                result["warning"] = str(exc)
+
             return result
 
         if not guardrail_result.is_safe:

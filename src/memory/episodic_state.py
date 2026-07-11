@@ -82,7 +82,7 @@ class Session:
 # ── Valid state transitions (FSM guard) ────────────────────────────
 
 _VALID_TRANSITIONS: dict[TriageState, set[TriageState]] = {
-    TriageState.INTAKE: {TriageState.SYMPTOM_EXTRACTION},
+    TriageState.INTAKE: {TriageState.SYMPTOM_EXTRACTION, TriageState.ESCALATION},
     TriageState.SYMPTOM_EXTRACTION: {TriageState.GUIDELINE_LOOKUP},
     TriageState.GUIDELINE_LOOKUP: {TriageState.RISK_ASSESSMENT},
     TriageState.RISK_ASSESSMENT: {TriageState.TRIAGE_DECISION},
