@@ -11,10 +11,8 @@
 #   docker compose up llama-cpp-server      # LLM only
 #
 # Prerequisites:
-#   Download the GGUF model before first run:
-#     mkdir -p models
-#     huggingface-cli download Qwen/Qwen2.5-3B-Instruct-GGUF \
-#       Qwen2.5-3B-Instruct-Q4_K_M.gguf --local-dir models
+#   Place your GGUF model in the models/ directory.
+#   Supported: gemma-3n-E4B-it-Q4_K_M.gguf, Qwen2.5-3B-Instruct-Q4_K_M.gguf, etc.
 
 services:
   # ── Service 1: Local LLM Server ──────────────────────────────────
@@ -26,13 +24,13 @@ services:
     volumes:
       - ./models:/models:ro
     command: >
-      --model /models/Qwen2.5-3B-Instruct-Q4_K_M.gguf
+      --model /models/gemma-3n-E4B-it-Q4_K_M.gguf
       --host 0.0.0.0
       --port 8000
       --n-ctx 4096
       --n-threads 4
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
       interval: 10s
       timeout: 5s
       retries: 5

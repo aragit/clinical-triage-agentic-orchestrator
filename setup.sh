@@ -4,8 +4,8 @@ set -euo pipefail
 # ─── Configuration ──────────────────────────────────────────────────
 VENV_DIR=".venv"
 MODEL_DIR="models"
-MODEL_FILE="Qwen2.5-3B-Instruct-Q4_K_M.gguf"
-MODEL_REPO="Qwen/Qwen2.5-3B-Instruct-GGUF"
+# Place your GGUF model in models/ and update this filename:
+MODEL_FILE="gemma-3n-E4B-it-Q4_K_M.gguf"
 
 # ─── Create virtual environment ─────────────────────────────────────
 echo "▸ Creating virtual environment in ${VENV_DIR}/ ..."
@@ -17,17 +17,12 @@ echo "▸ Installing Python dependencies ..."
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
-# ─── Download GGUF model ───────────────────────────────────────────
+# ─── Verify model exists ───────────────────────────────────────────
 mkdir -p "${MODEL_DIR}"
 if [ ! -f "${MODEL_DIR}/${MODEL_FILE}" ]; then
-    echo "▸ Downloading ${MODEL_FILE} from HuggingFace ..."
-    huggingface-cli download \
-        "${MODEL_REPO}" \
-        "${MODEL_FILE}" \
-        --local-dir "${MODEL_DIR}"
-    echo "▸ Model saved to ${MODEL_DIR}/${MODEL_FILE}"
-else
-    echo "▸ Model already exists at ${MODEL_DIR}/${MODEL_FILE}, skipping download."
+    echo "⚠ Model not found at ${MODEL_DIR}/${MODEL_FILE}"
+    echo "  Place your GGUF model file in ${MODEL_DIR}/ and update MODEL_FILE in setup.sh"
+    exit 1
 fi
 
 # ─── Verify installation ───────────────────────────────────────────
