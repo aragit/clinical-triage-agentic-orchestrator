@@ -89,7 +89,7 @@ def poll_for_result(session_id: str, max_wait: float = 180.0) -> dict | None:
 st.title("Clinical Triage Orchestrator")
 st.caption(f"Session: `{st.session_state.session_id}`")
 
-col_chat, col_trace = st.columns([1, 1])
+col_chat, col_trace, col_json = st.columns([2, 2, 2])
 
 # ═══════════════════════════════════════════════════════════════════
 # LEFT COLUMN: Patient Chat
@@ -191,41 +191,46 @@ with col_trace:
     session_state = api_get(f"/webhook/session/{st.session_state.session_id}")
 
     if session_state:
+        # ── FSM State Node ─────────────────────────────────────────
+        st.markdown("### Active State Node")
         current = session_state.get("current_state", "unknown")
-
-        # ── FSM Pipeline ────────────────────────────────────────────
-        state_icons = {
-            "intake": "🔵", "symptom_extraction": "🟡",
-            "guideline_lookup": "🟠", "risk_assessment": "🔴",
-            "triage_decision": "🟣", "escalation": "🚨", "resolved": "✅",
+        state_colors = {
+            "intake": "🔵",
+            "symptom_extraction": "🟡",
+            "guideline_lookup": "🟠",
+            "risk_assessment": "🔴",
+            "triage_decision": "🟣",
+            "escalation": "🚨",
+            "resolved": "✅",
         }
+        icon = state_colors.get(current, "⚪")
+        st.markdown(f"#### {icon} `{current}`")
+
+        # FSM visualization
         fsm_steps = ["intake", "symptom_extraction", "guideline_lookup",
                       "risk_assessment", "triage_decision", "escalation", "resolved"]
-        icon = state_icons.get(current, "⚪")
-
-        st.markdown(f"#### {icon} `{current}`")
         try:
-            idx = fsm_steps.index(current)
-            parts = []
+            current_idx = fsm_steps.index(current)
             for i, step in enumerate(fsm_steps):
-                if i < idx:
-                    parts.append(f"✅ `{step}`")
-                elif i == idx:
-                    parts.append(f"▶️ **{step}**")
+                if i < current_idx:
+                    st.markdown(f"✅ ~~{step}~~")
+                elif i == current_idx:
+                    st.markdown(f"▶️ **{step}** (current)")
                 else:
-                    parts.append(f"⬜ `{step}`")
-            st.markdown(" → ".join(parts))
+                    st.markdown(f"⬜ {step}")
         except ValueError:
             st.markdown(f"Current: `{current}`")
 
         st.divider()
 
-        # ── Clinical Entities ───────────────────────────────────────
-        st.markdown("#### Clinical Entities")
+        # ── Extracted Entities ──────────────────────────────────────
+        st.markdown("### SNOMED / ICD-10 Entities")
         result = st.session_state.last_result
         if result:
             resp = result.get("response", {})
 
+            # Emergency bypass stores entities in response.extracted_entities
+            # Normal path stores them in steps.D_executor
             entities = []
             extracted = resp.get("extracted_entities", {})
             if extracted:
@@ -236,77 +241,73 @@ with col_trace:
 
             if entities:
                 for ent in entities:
-                    st.markdown(f"**{ent['term']}** `{ent['category']}`")
-                    cols = st.columns(3)
-                    cols[0].metric("SNOMED", ent.get("snomed_code", "—"))
-                    cols[1].metric("ICD-10", ent.get("icd10_code", "—"))
-                    cols[2].metric("Confidence", f"{ent.get('confidence', 0):.0%}")
+                    with st.expander(f"**{ent['term']}** ({ent['category']})", expanded=True):
+                        cols = st.columns(3)
+                        cols[0].metric("SNOMED", ent.get("snomed_code", "—"))
+                        cols[1].metric("ICD-10", ent.get("icd10_code", "—"))
+                        cols[2].metric("Confidence", f"{ent.get('confidence', 0):.0%}")
             else:
-                st.caption("No entities extracted yet")
+                st.info("No entities extracted yet")
 
             st.divider()
 
-            # ── Pipeline Summary ────────────────────────────────────
-            st.markdown("#### Pipeline")
-            latency = result.get("latency_ms", 0)
-
-            # Collect rules fired
-            rules = []
-            if "steps" in result:
-                guardrail = result["steps"].get("B_guardrail", {})
-                rules = guardrail.get("triggered_rules", [])
-            elif resp.get("triggered_rules"):
-                rules = resp.get("triggered_rules", [])
-
-            metric_cols = st.columns(2)
-            metric_cols[0].metric("Latency", f"{latency:.1f}ms")
-            metric_cols[1].metric("Rules fired", len(rules))
-
-            if rules:
-                # Deduplicate while preserving order
-                seen = set()
-                unique_rules = []
-                for r in rules:
-                    if r not in seen:
-                        seen.add(r)
-                        unique_rules.append(r)
-                st.caption(", ".join(unique_rules))
-
-            st.divider()
-
-            # ── Diagnostic CoT ──────────────────────────────────────
-            st.markdown("#### Diagnostic CoT")
+            # ── Diagnostic CoT Reasoning ────────────────────────────
+            st.markdown("### LLM Diagnostic CoT")
             cognition = {}
             if "steps" in result:
                 cognition = result["steps"].get("E_cognition", {})
-
             if cognition and "error" not in cognition:
                 observations = cognition.get("clinical_observations", [])
                 rationale = cognition.get("step_by_step_rationale", [])
 
                 if observations:
+                    st.markdown("**Clinical Observations:**")
                     for obs in observations:
                         st.markdown(f"- {obs}")
+
                 if rationale:
-                    st.markdown("**Reasoning:**")
+                    st.markdown("**Step-by-step Rationale:**")
                     for i, step in enumerate(rationale, 1):
                         st.markdown(f"{i}. {step}")
 
                 meta_cols = st.columns(3)
                 meta_cols[0].metric("Urgency", cognition.get("urgency_level", "—"))
-                meta_cols[1].metric("Dept", cognition.get("recommended_department", "—"))
+                meta_cols[1].metric("Department", cognition.get("recommended_department", "—"))
                 meta_cols[2].metric("Confidence", f"{cognition.get('confidence', 0):.0%}")
             elif cognition.get("error"):
-                st.warning(f"LLM error: {cognition['error']}")
+                st.warning(f"LLM step error: {cognition['error']}")
             elif resp.get("llm_bypassed"):
-                st.info("LLM bypassed — emergency rules triggered, no CoT needed")
+                st.info("LLM bypassed — emergency rules triggered, no CoT reasoning needed")
             else:
-                st.caption("No LLM reasoning yet — send a message to start")
+                st.info("No LLM reasoning yet — send a message to trigger the pipeline")
 
-            # ── Raw JSON ────────────────────────────────────────────
-            with st.expander("Raw result JSON", expanded=False):
-                st.json(result)
+            st.divider()
+
+            # ── Pipeline Latency ────────────────────────────────────
+            st.markdown("### Pipeline Latency")
+            latency = result.get("latency_ms", 0)
+            st.metric("Total Latency", f"{latency:.1f}ms")
+
+            # Step-level breakdown if available
+            if "steps" in result:
+                guardrail = result["steps"].get("B_guardrail", {})
+                memory = result["steps"].get("C_memory", {})
+                st.markdown(f"**Guardrail rules fired:** {', '.join(guardrail.get('triggered_rules', [])) or 'none'}")
+                st.markdown(f"**Guidelines matched:** {memory.get('guidelines_found', 0)}")
+            elif resp.get("triggered_rules"):
+                st.markdown(f"**Guardrail rules fired:** {', '.join(resp.get('triggered_rules', [])) or 'none'}")
         else:
             st.info("No trace data yet — send a message to start the pipeline")
     else:
         st.info("Session not found on server. Send a message to create one.")
+
+# ═══════════════════════════════════════════════════════════════════
+# THIRD COLUMN: Raw JSON
+# ═══════════════════════════════════════════════════════════════════
+
+with col_json:
+    st.subheader("Raw Result JSON")
+    if st.session_state.last_result:
+        st.json(st.session_state.last_result)
+    else:
+        st.info("No result yet — send a message to start the pipeline")
