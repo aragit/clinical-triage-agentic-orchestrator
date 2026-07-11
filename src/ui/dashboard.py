@@ -14,14 +14,18 @@ import json
 import time
 from typing import Any
 
+import os
+
 import httpx
 import streamlit as st
 
 # ── Configuration ───────────────────────────────────────────────────
 
+DEFAULT_API = os.getenv("API_BASE_URL", "http://localhost:8080")
+
 API_BASE_URL = st.sidebar.text_input(
     "API Base URL",
-    value="http://localhost:8080",
+    value=DEFAULT_API,
     help="FastAPI orchestrator endpoint",
 )
 
