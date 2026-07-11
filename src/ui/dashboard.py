@@ -19,6 +19,14 @@ import os
 import httpx
 import streamlit as st
 
+# ── Page config (must be first Streamlit command) ────────────────────
+
+st.set_page_config(
+    page_title="Clinical Triage Orchestrator",
+    page_icon="🩺",
+    layout="wide",
+)
+
 # ── Configuration ───────────────────────────────────────────────────
 
 DEFAULT_API = os.getenv("API_BASE_URL", "http://localhost:8080")
@@ -89,7 +97,7 @@ def poll_for_result(session_id: str, max_wait: float = 180.0) -> dict | None:
 st.title("Clinical Triage Orchestrator")
 st.caption(f"Session: `{st.session_state.session_id}`")
 
-col_chat, col_trace = st.columns([1, 1])
+col_chat, col_trace = st.columns([1, 1], gap="large")
 
 # ═══════════════════════════════════════════════════════════════════
 # LEFT COLUMN: Patient Chat
@@ -104,22 +112,23 @@ with col_chat:
             st.markdown(msg["content"])
 
     # Quick-launch clinical scenarios
-    st.markdown("**Quick scenarios:**")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Chest Pain", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": "I have severe chest pain and difficulty breathing"})
-            st.rerun()
-        if st.button("Stroke Symptoms", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": "My face is drooping on one side and I can't lift my arm"})
-            st.rerun()
-    with col2:
-        if st.button("Mild Headache", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": "I have a mild headache and slight nausea"})
-            st.rerun()
-        if st.button("Emergency (Heart Attack)", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": "I think I'm having a heart attack"})
-            st.rerun()
+    with st.container(border=True):
+        st.markdown("**Quick scenarios**")
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            if st.button("Chest Pain", use_container_width=True):
+                st.session_state.messages.append({"role": "user", "content": "I have severe chest pain and difficulty breathing"})
+                st.rerun()
+            if st.button("Stroke Symptoms", use_container_width=True):
+                st.session_state.messages.append({"role": "user", "content": "My face is drooping on one side and I can't lift my arm"})
+                st.rerun()
+        with sc2:
+            if st.button("Mild Headache", use_container_width=True):
+                st.session_state.messages.append({"role": "user", "content": "I have a mild headache and slight nausea"})
+                st.rerun()
+            if st.button("Emergency (Heart Attack)", use_container_width=True):
+                st.session_state.messages.append({"role": "user", "content": "I think I'm having a heart attack"})
+                st.rerun()
 
     # Chat input
     if prompt := st.chat_input("Describe your symptoms..."):
@@ -241,7 +250,8 @@ with col_trace:
 
             if entities:
                 for ent in entities:
-                    with st.expander(f"**{ent['term']}** ({ent['category']})", expanded=True):
+                    with st.container(border=True):
+                        st.markdown(f"**{ent['term']}** `{ent['category']}`")
                         cols = st.columns(3)
                         cols[0].metric("SNOMED", ent.get("snomed_code", "—"))
                         cols[1].metric("ICD-10", ent.get("icd10_code", "—"))
@@ -301,9 +311,14 @@ with col_trace:
     else:
         st.info("Session not found on server. Send a message to create one.")
 
-    # ── Raw JSON dump ───────────────────────────────────────────────
-    with st.expander("Raw result JSON", expanded=False):
-        if st.session_state.last_result:
-            st.json(st.session_state.last_result)
-        else:
-            st.code("No result yet")
+# ═══════════════════════════════════════════════════════════════════
+# ROOT LEVEL: Raw JSON (full width, outside columns)
+# ═══════════════════════════════════════════════════════════════════
+
+st.divider()
+
+with st.expander("Raw result JSON", expanded=False):
+    if st.session_state.last_result:
+        st.json(st.session_state.last_result)
+    else:
+        st.code("No result yet")
