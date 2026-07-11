@@ -162,6 +162,14 @@ The deterministic policy engine intercepts the input instantly, extracts relevan
 }
 ```
 
+### UI Walkthrough
+
+![Triage Dashboard — Initial State](assets/triage_1.png)
+
+![Triage Dashboard — Emergency Bypass](assets/triage2.png)
+
+![Triage Dashboard — Trace & Entities](assets/triage3.png)
+
 ---
 
 ## Repository Structure
