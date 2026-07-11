@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+models/
+.env
+*.egg-info/
+dist/
+build/
+.mimocode/
