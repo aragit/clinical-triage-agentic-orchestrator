@@ -269,23 +269,24 @@ class TriageAgent:
                     {
                         "role": "system",
                         "content": (
-                            "You are a clinical triage engine. "
-                            "Analyze the patient input and return ONLY a JSON object "
-                            "with these keys: "
-                            "clinical_observations (list of strings), "
-                            "step_by_step_rationale (list of strings), "
-                            "urgency_level (emergent|urgent|semi-urgent|non-urgent|deferrable), "
-                            "next_state_action (symptom_extraction|risk_assessment|triage_decision|escalation), "
-                            "extracted_symptoms (list of strings), "
-                            "recommended_department (ER|urgent_care|primary_care|telehealth|self_care), "
-                            "confidence (number 0-1). "
-                            "Return ONLY the JSON object, no other text."
+                            "You are a diagnostic reasoning engine. "
+                            "You MUST output ONLY valid JSON matching the provided schema. "
+                            "Do NOT output conversational text, markdown, or explanations. "
+                            "Return a single JSON object with exactly these keys: "
+                            "clinical_observations (array of strings), "
+                            "step_by_step_rationale (array of strings, at least 1 item), "
+                            "urgency_level (one of: emergent, urgent, semi-urgent, non-urgent, deferrable), "
+                            "next_state_action (one of: symptom_extraction, risk_assessment, triage_decision, escalation), "
+                            "extracted_symptoms (array of strings), "
+                            "recommended_department (one of: ER, urgent_care, primary_care, telehealth, self_care), "
+                            "confidence (number between 0 and 1). "
+                            "OUTPUT ONLY THE JSON OBJECT. NO OTHER TEXT."
                         ),
                     },
                     {"role": "user", "content": enriched_prompt},
                 ],
                 response_format={"type": "json_object"},
-                max_tokens=512,
+                max_tokens=150,
                 temperature=0.1,
             )
             content = raw_response.choices[0].message.content
@@ -314,17 +315,18 @@ class TriageAgent:
                     "high": "urgent", "medium": "semi-urgent", "low": "non-urgent",
                     "critical": "emergent", "emergency": "emergent", "mild": "deferrable",
                     "severe": "urgent", "moderate": "semi-urgent", "urgent": "urgent",
+                    "semi-urgent": "semi-urgent", "non-urgent": "non-urgent", "deferrable": "deferrable",
                 }
-                raw_urgency = parsed.get("urgency_level", parsed.get("urgency", "semi-urgent"))
-                urgency = _urgency_map.get(str(raw_urgency).lower(), "semi-urgent")
+                raw_urgency = parsed.get("urgency_level", parsed.get("urgency", "emergent"))
+                urgency = _urgency_map.get(str(raw_urgency).lower(), "emergent")
 
                 _dept_map = {
                     "emergency": "ER", "er": "ER", "urgent care": "urgent_care",
                     "primary": "primary_care", "telehealth": "telehealth",
                     "self care": "self_care", "self-care": "self_care",
                 }
-                raw_dept = parsed.get("recommended_department", parsed.get("department", "primary_care"))
-                dept = _dept_map.get(str(raw_dept).lower(), "primary_care")
+                raw_dept = parsed.get("recommended_department", parsed.get("department", "ER"))
+                dept = _dept_map.get(str(raw_dept).lower(), "ER")
 
                 _action_map = {
                     "intake": "symptom_extraction", "resolved": "triage_decision",
@@ -342,7 +344,7 @@ class TriageAgent:
                     raw_obs = str(parsed["clinical_observations"][0]) if parsed["clinical_observations"] else content[:300]
 
                 # Extract rationale
-                raw_rat = _extract_text(parsed, "step_by_step_rationale", "rationale", fallback="LLM provided free-form response")
+                raw_rat = _extract_text(parsed, "step_by_step_rationale", "rationale", fallback="LLM output did not match expected schema. Fail-safe routing applied.")
                 if isinstance(parsed.get("step_by_step_rationale"), list):
                     raw_rat = str(parsed["step_by_step_rationale"][0]) if parsed["step_by_step_rationale"] else raw_rat
 
@@ -366,33 +368,36 @@ class TriageAgent:
                 }
 
         except json.JSONDecodeError:
-            # Model returned natural language instead of JSON — use it as-is
-            logger.warning("LLM returned non-JSON text, using as rationale")
+            # Fail-safe: ALWAYS over-triage, never under-triage
+            logger.warning("LLM returned non-JSON text — fail-safe routing to ER")
             cot_response = DiagnosticCoT(
                 clinical_observations=[content[:200]],
-                step_by_step_rationale=[content[:500]],
-                urgency_level="semi-urgent",
-                next_state_action="triage_decision",
+                step_by_step_rationale=["LLM output was non-JSON. Fail-safe: routing to ER for clinician review."],
+                urgency_level="emergent",
+                next_state_action="escalation",
                 extracted_symptoms=session.extracted_symptoms or symptoms or ["symptoms reported"],
-                recommended_department="primary_care",
-                confidence=0.4,
+                recommended_department="ER",
+                confidence=0.0,
             )
             result["steps"]["E_cognition"] = {
                 **cot_response.to_dict(),
                 "raw_llm_output": content[:500],
+                "fail_safe": True,
             }
         except Exception as exc:
-            logger.error("LLM call failed: %s", exc)
+            # Fail-safe: ALWAYS over-triage, never under-triage
+            logger.error("LLM call failed: %s — fail-safe routing to ER", exc)
             result["error"] = f"LLM inference failed: {exc}"
-            result["steps"]["E_cognition"] = {"error": str(exc)}
+            result["steps"]["E_cognition"] = {"error": str(exc), "fail_safe": True}
             result["response"] = {
-                "message": f"LLM inference failed: {exc}. Please ensure the LLM server is running.",
-                "observations": [],
-                "rationale": [],
-                "urgency": "unknown",
-                "department": "unknown",
+                "message": f"LLM inference failed. Fail-safe: routing to ER for clinician review. Error: {exc}",
+                "observations": ["System error during LLM inference. Routing to emergency for safety."],
+                "rationale": ["LLM inference failed. Fail-safe protocol: over-triage to ER."],
+                "urgency": "emergent",
+                "department": "ER",
                 "confidence": 0.0,
                 "symptoms": [],
+                "fail_safe": True,
             }
             return result
 

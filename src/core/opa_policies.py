@@ -87,25 +87,43 @@ class ClinicalInput(BaseModel):
 # Life-threatening keyword patterns — immediate emergency bypass.
 # These are the硬规则 (hard rules) that no probabilistic model should override.
 _EMERGENCY_PATTERNS: list[tuple[str, str]] = [
+    # Cardiac
     (r"\bheart\s*attack\b", "cardiac-emergency"),
     (r"\bmyocardial\s*infarction\b", "cardiac-emergency"),
     (r"\bstemi\b", "cardiac-emergency"),
+    (r"\bchest\s*pain\b.*\b(shortness|breathing|dyspnea|breath)\b", "cardiac-emergency"),
+    (r"\bchest\s*pain\b", "cardiac-emergency"),
+    # Respiratory
+    (r"\bshortness\s*of\s*breath\b", "respiratory-emergency"),
+    (r"\bdifficulty\s*breathing\b", "respiratory-emergency"),
+    (r"\bcan'?t\s*breathe\b", "respiratory-emergency"),
+    (r"\bnot\s*breathing\b", "respiratory-emergency"),
+    (r"\bsevere\s*(dyspnea|sob)\b", "respiratory-emergency"),
+    # Psychiatric
     (r"\bsuicid(e|al)\b", "psychiatric-emergency"),
     (r"\bkill\s*myself\b", "psychiatric-emergency"),
     (r"\bend\s*my\s*life\b", "psychiatric-emergency"),
     (r"\bself[\-\s]*harm\b", "psychiatric-emergency"),
+    # Allergic
     (r"\banaphyla(xis|ctic)\b", "allergic-emergency"),
+    # Neurological
     (r"\bstroke\b", "neurological-emergency"),
+    (r"\bfacial\s*droop\b", "neurological-emergency"),
+    (r"\bface\s*(is\s*)?drooping\b", "neurological-emergency"),
+    (r"\barm\s*weakness\b", "neurological-emergency"),
+    (r"\bcan'?t\s*(lift|raise)\s*(my\s*)?arm\b", "neurological-emergency"),
+    (r"\bslurred\s*speech\b", "neurological-emergency"),
     (r"\bseizure\b", "neurological-emergency"),
-    (r"\buncontrolled\s*bleed", "hemorrhagic-emergency"),
-    (r"\bhemorrhag(e|ic)\b", "hemorrhagic-emergency"),
     (r"\bloss\s*of\s*consciousness\b", "neurological-emergency"),
     (r"\bunresponsive\b", "neurological-emergency"),
+    # Hemorrhagic
+    (r"\buncontrolled\s*bleed", "hemorrhagic-emergency"),
+    (r"\bhemorrhag(e|ic)\b", "hemorrhagic-emergency"),
+    # Toxicological
     (r"\boverdos(e|ed)\b", "toxicological-emergency"),
     (r"\bpoison(ing|ed)\b", "toxicological-emergency"),
+    # Airway
     (r"\bchoking\b", "airway-emergency"),
-    (r"\bcan'?t\s*breathe\b", "respiratory-emergency"),
-    (r"\bnot\s*breathing\b", "respiratory-emergency"),
 ]
 
 # Escalation keywords — not immediately life-threatening but require
