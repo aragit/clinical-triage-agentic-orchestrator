@@ -60,6 +60,8 @@ def api_get(endpoint: str) -> dict | None:
         r = httpx.get(f"{API_BASE_URL}{endpoint}", timeout=10)
         if r.status_code == 202:
             return {"status": "processing"}
+        if r.status_code == 404:
+            return None
         r.raise_for_status()
         return r.json()
     except httpx.HTTPError as e:
@@ -67,7 +69,7 @@ def api_get(endpoint: str) -> dict | None:
         return None
 
 
-def poll_for_result(session_id: str, max_wait: float = 15.0) -> dict | None:
+def poll_for_result(session_id: str, max_wait: float = 180.0) -> dict | None:
     """Poll the async endpoint until result is ready or timeout."""
     deadline = time.time() + max_wait
     placeholder = st.sidebar.empty()

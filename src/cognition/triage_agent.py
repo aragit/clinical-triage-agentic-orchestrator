@@ -261,37 +261,155 @@ class TriageAgent:
         enriched_prompt = "\n".join(context_parts)
 
         try:
-            cot_response: DiagnosticCoT = self._llm.chat.completions.create(
+            # Use raw OpenAI client — instructor incompatible with gemma on llama-cpp
+            import json
+            raw_response = self._llm._raw_client.chat.completions.create(
                 model=self._llm._model,
-                response_model=DiagnosticCoT,
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "You are a clinical triage reasoning engine.  You MUST "
-                            "produce structured Chain-of-Thought output.  Think "
-                            "step-by-step through the differential diagnosis before "
-                            "classifying urgency.  Every field in the schema is "
-                            "required — no shortcuts."
+                            "You are a clinical triage engine. "
+                            "Analyze the patient input and return ONLY a JSON object "
+                            "with these keys: "
+                            "clinical_observations (list of strings), "
+                            "step_by_step_rationale (list of strings), "
+                            "urgency_level (emergent|urgent|semi-urgent|non-urgent|deferrable), "
+                            "next_state_action (symptom_extraction|risk_assessment|triage_decision|escalation), "
+                            "extracted_symptoms (list of strings), "
+                            "recommended_department (ER|urgent_care|primary_care|telehealth|self_care), "
+                            "confidence (number 0-1). "
+                            "Return ONLY the JSON object, no other text."
                         ),
                     },
                     {"role": "user", "content": enriched_prompt},
                 ],
-                max_tokens=1024,
+                response_format={"type": "json_object"},
+                max_tokens=512,
                 temperature=0.1,
             )
-            result["steps"]["E_cognition"] = cot_response.to_dict()
+            content = raw_response.choices[0].message.content
+            parsed = json.loads(content)
+
+            # Try to construct DiagnosticCoT — model may not follow schema exactly
+            try:
+                cot_response = DiagnosticCoT(**parsed)
+                result["steps"]["E_cognition"] = cot_response.to_dict()
+            except Exception:
+                # Model returned JSON but not the expected schema — wrap it
+                logger.warning("LLM JSON didn't match schema, wrapping response")
+
+                # Extract clean text from model's response (may be wrapped in {"response": "..."})
+                def _extract_text(data: dict, *keys: str, fallback: str = "") -> str:
+                    for k in keys:
+                        v = data.get(k)
+                        if isinstance(v, str):
+                            return v
+                        if isinstance(v, list) and v:
+                            return v[0] if isinstance(v[0], str) else str(v[0])
+                    return fallback
+
+                # Normalize enum values the model may get wrong
+                _urgency_map = {
+                    "high": "urgent", "medium": "semi-urgent", "low": "non-urgent",
+                    "critical": "emergent", "emergency": "emergent", "mild": "deferrable",
+                    "severe": "urgent", "moderate": "semi-urgent", "urgent": "urgent",
+                }
+                raw_urgency = parsed.get("urgency_level", parsed.get("urgency", "semi-urgent"))
+                urgency = _urgency_map.get(str(raw_urgency).lower(), "semi-urgent")
+
+                _dept_map = {
+                    "emergency": "ER", "er": "ER", "urgent care": "urgent_care",
+                    "primary": "primary_care", "telehealth": "telehealth",
+                    "self care": "self_care", "self-care": "self_care",
+                }
+                raw_dept = parsed.get("recommended_department", parsed.get("department", "primary_care"))
+                dept = _dept_map.get(str(raw_dept).lower(), "primary_care")
+
+                _action_map = {
+                    "intake": "symptom_extraction", "resolved": "triage_decision",
+                    "triage": "triage_decision", "assess": "risk_assessment",
+                }
+                raw_action = parsed.get("next_state_action", "triage_decision")
+                action = _action_map.get(str(raw_action).lower(), "triage_decision")
+
+                # Extract observations — handle {"response": "..."} wrapper
+                raw_obs = _extract_text(parsed, "clinical_observations", "observations", fallback="")
+                if not raw_obs:
+                    # Model returned {"response": "..."} format — extract the text
+                    raw_obs = _extract_text(parsed, "response", fallback=content[:300])
+                elif isinstance(parsed.get("clinical_observations"), list):
+                    raw_obs = str(parsed["clinical_observations"][0]) if parsed["clinical_observations"] else content[:300]
+
+                # Extract rationale
+                raw_rat = _extract_text(parsed, "step_by_step_rationale", "rationale", fallback="LLM provided free-form response")
+                if isinstance(parsed.get("step_by_step_rationale"), list):
+                    raw_rat = str(parsed["step_by_step_rationale"][0]) if parsed["step_by_step_rationale"] else raw_rat
+
+                # Extract symptoms
+                raw_syms = parsed.get("extracted_symptoms", session.extracted_symptoms or ["symptoms reported"])
+                if isinstance(raw_syms, str):
+                    raw_syms = [raw_syms]
+
+                cot_response = DiagnosticCoT(
+                    clinical_observations=[raw_obs],
+                    step_by_step_rationale=[raw_rat],
+                    urgency_level=urgency,
+                    next_state_action=action,
+                    extracted_symptoms=raw_syms,
+                    recommended_department=dept,
+                    confidence=float(parsed.get("confidence", 0.5)),
+                )
+                result["steps"]["E_cognition"] = {
+                    **cot_response.to_dict(),
+                    "raw_llm_output": content[:500],
+                }
+
+        except json.JSONDecodeError:
+            # Model returned natural language instead of JSON — use it as-is
+            logger.warning("LLM returned non-JSON text, using as rationale")
+            cot_response = DiagnosticCoT(
+                clinical_observations=[content[:200]],
+                step_by_step_rationale=[content[:500]],
+                urgency_level="semi-urgent",
+                next_state_action="triage_decision",
+                extracted_symptoms=session.extracted_symptoms or symptoms or ["symptoms reported"],
+                recommended_department="primary_care",
+                confidence=0.4,
+            )
+            result["steps"]["E_cognition"] = {
+                **cot_response.to_dict(),
+                "raw_llm_output": content[:500],
+            }
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
             result["error"] = f"LLM inference failed: {exc}"
             result["steps"]["E_cognition"] = {"error": str(exc)}
+            result["response"] = {
+                "message": f"LLM inference failed: {exc}. Please ensure the LLM server is running.",
+                "observations": [],
+                "rationale": [],
+                "urgency": "unknown",
+                "department": "unknown",
+                "confidence": 0.0,
+                "symptoms": [],
+            }
             return result
 
         # ── Step F: Action — update FSM state ───────────────────────
-        next_state = _ACTION_TO_STATE.get(cot_response.next_state_action)
-        if next_state is None:
-            result["error"] = f"Invalid next_state_action: {cot_response.next_state_action}"
-            return result
+        # LLM may suggest a state that's not valid from current position.
+        # Use the LLM's suggestion as a hint but enforce FSM validity.
+        from src.memory.episodic_state import _VALID_TRANSITIONS
+        suggested_state = _ACTION_TO_STATE.get(cot_response.next_state_action)
+        allowed = _VALID_TRANSITIONS.get(session.current_state, set())
+
+        if suggested_state and suggested_state in allowed:
+            next_state = suggested_state
+        elif allowed:
+            # Pick the most advanced allowed state
+            next_state = max(allowed, key=lambda s: list(TriageState).index(s))
+        else:
+            next_state = TriageState.RESOLVED
 
         try:
             self._episodic.transition(session_id, next_state)

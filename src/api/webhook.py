@@ -87,7 +87,7 @@ def _run_triage_background(
     try:
         # Ensure session exists
         if state.episodic_store.get_session(session_id) is None:
-            state.episodic_store.create_session(patient_id=patient_id)
+            state.episodic_store.create_session(patient_id=patient_id, session_id=session_id)
 
         result = state.agent.execute_triage_turn(session_id, user_input)
         result["latency_ms"] = round((time.time() - start) * 1000, 1)
@@ -131,6 +131,7 @@ async def fulfillment(
     if state.episodic_store.get_session(req.session_id) is None:
         state.episodic_store.create_session(
             patient_id=req.patient_id,
+            session_id=req.session_id,
         )
 
     # Offload triage to background — this is the post-mortem fix
@@ -192,7 +193,7 @@ async def triage_sync(req: DialogflowRequest) -> TriageResponse:
     start = time.time()
 
     if state.episodic_store.get_session(req.session_id) is None:
-        state.episodic_store.create_session(patient_id=req.patient_id)
+        state.episodic_store.create_session(patient_id=req.patient_id, session_id=req.session_id)
 
     result = state.agent.execute_triage_turn(req.session_id, req.query_text)
     latency = round((time.time() - start) * 1000, 1)

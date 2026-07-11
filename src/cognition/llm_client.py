@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # ── Configuration ───────────────────────────────────────────────────
 
 LOCAL_LLM_BASE_URL = "http://localhost:8000/v1"
-LOCAL_LLM_MODEL = "local-model"  # llama-cpp-server registers any model as this
+LOCAL_LLM_MODEL = "models/gemma-3n-E4B-it-Q4_K_M.gguf"  # match server's registered model ID
 LOCAL_LLM_API_KEY = "not-needed"  # llama-cpp-server doesn't check keys
 
 

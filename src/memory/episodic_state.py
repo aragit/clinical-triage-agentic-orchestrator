@@ -117,9 +117,12 @@ class EpisodicStore:
     # ── CRUD ────────────────────────────────────────────────────────
 
     def create_session(
-        self, patient_id: str = "", initial_state: TriageState = TriageState.INTAKE
+        self,
+        patient_id: str = "",
+        initial_state: TriageState = TriageState.INTAKE,
+        session_id: str = "",
     ) -> str:
-        sid = uuid.uuid4().hex[:16]
+        sid = session_id or uuid.uuid4().hex[:16]
         self._store[sid] = Session(session_id=sid, patient_id=patient_id, current_state=initial_state)
         return sid
 
