@@ -1,0 +1,106 @@
+# ── Clinical Triage Agentic Orchestrator ────────────────────────────
+# Four-service stack:
+#   1. llama-cpp-server  — CPU-native Qwen GGUF inference on port 8000
+#   2. redis             — Session cache (replaces in-process dict in prod)
+#   3. orchestrator-api  — FastAPI triage pipeline on port 8080
+#   4. streamlit-ui      — Observability dashboard on port 8501
+#
+# Usage:
+#   docker compose up --build
+#   docker compose up --build -d            # detached
+#   docker compose up llama-cpp-server      # LLM only
+#
+# Prerequisites:
+#   Download the GGUF model before first run:
+#     mkdir -p models
+#     huggingface-cli download Qwen/Qwen2.5-3B-Instruct-GGUF \
+#       Qwen2.5-3B-Instruct-Q4_K_M.gguf --local-dir models
+
+services:
+  # ── Service 1: Local LLM Server ──────────────────────────────────
+  llama-cpp-server:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: triage-llm-server
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/models:ro
+    command: >
+      --model /models/Qwen2.5-3B-Instruct-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8000
+      --n-ctx 4096
+      --n-threads 4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # ── Service 2: Redis Cache ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: triage-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ── Service 3: FastAPI Orchestrator ──────────────────────────────
+  orchestrator-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: triage-api
+    ports:
+      - "8080:8080"
+    environment:
+      - LLM_BASE_URL=http://llama-cpp-server:8000/v1
+      - LLM_MODEL=local-model
+      - LLM_API_KEY=not-needed
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      llama-cpp-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Service 4: Streamlit Dashboard ───────────────────────────────
+  streamlit-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: triage-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://orchestrator-api:8080
+    depends_on:
+      orchestrator-api:
+        condition: service_healthy
+    command: >
+      streamlit run src/ui/dashboard.py
+      --server.port 8501
+      --server.address 0.0.0.0
+      --server.headless true
+      --browser.gatherUsageStats false
+
+volumes:
+  redis-data:
