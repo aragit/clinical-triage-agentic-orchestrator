@@ -98,7 +98,7 @@ The system employs a **dual-pathway execution pattern** (Fast-Path vs. Slow-Path
 
 ---
 
-## Core Subsystems
+## Core Components
 
 1. **Perception Layer (`src/api/` & `src/ui/`)**: A high-performance FastAPI backend paired with a comprehensive Streamlit observability dashboard. Implements asynchronous webhook decoupling via FastAPI `BackgroundTasks` to achieve low-latency (<150ms) HTTP network acknowledgments, protecting against connection drops in consumer channels like Dialogflow CX.
 
