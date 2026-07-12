@@ -3,21 +3,6 @@
   <p align="center">An enterprise-grade, localized Neuro-Symbolic Agentic AI Orchestrator for high-stakes clinical triage.</p>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Production--Grade-Verified-brightgreen.svg" alt="Production Grade">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/Local--Architecture-CPU--Native-blue.svg" alt="Local Architecture: CPU Native">
-  <img src="https://img.shields.io/badge/Latency-Sub--30ms-orange.svg" alt="Latency: Sub-30ms">
-</p>
-
----
-
-Operating entirely on consumer-grade hardware (Intel i5 CPU, 16GB RAM) without external cloud APIs or GPU dependencies, this system implements a **deterministic-to-probabilistic execution boundary**. By combining an isolated policy guardrail, real-time medical ontology extraction (**SNOMED CT / ICD-10-CM**), an in-memory hybrid vector database, an atomic Finite State Machine (FSM), and grammar-constrained LLM decoding, this architecture guarantees safety, eliminates hallucination risks for critical presentations, and maintains a zero-latency fast-path for medical emergencies.
-
----
-
-## Tech Stack
-
 | Layer | Technology |
 |---|---|
 | **Backend Framework** | FastAPI + Uvicorn |
@@ -32,6 +17,10 @@ Operating entirely on consumer-grade hardware (Intel i5 CPU, 16GB RAM) without e
 | **Async Processing** | FastAPI BackgroundTasks |
 | **Containerization** | Docker + Docker Compose |
 | **Language** | Python 3.12+ |
+
+---
+
+Operating entirely on consumer-grade hardware (Intel i5 CPU, 16GB RAM) without external cloud APIs or GPU dependencies, this system implements a **deterministic-to-probabilistic execution boundary**. By combining an isolated policy guardrail, real-time medical ontology extraction (**SNOMED CT / ICD-10-CM**), an in-memory hybrid vector database, an atomic Finite State Machine (FSM), and grammar-constrained LLM decoding, this architecture guarantees safety, eliminates hallucination risks for critical presentations, and maintains a zero-latency fast-path for medical emergencies.
 
 ---
 
