@@ -321,6 +321,40 @@ Access the systems via the following local allocations:
 
 ---
 
+## Evolutionary Roadmap: Plan-Then-Execute (PTE) Architecture
+
+This repository serves as a high-performance baseline for localized, resource-constrained agentic execution. To transition from the current rigid, linear pipeline to a highly adaptive **Plan-Then-Execute (PTE)** framework, the architecture decouples high-level cognitive planning from low-level deterministic tool execution. 
+
+Under this paradigm, the Large Language Model (LLM) acts purely as a **Workflow Compiler** that ingests unstructured patient data and outputs an explicit Directed Acyclic Graph (DAG) plan. A **Central Tool Executor**, written in native Python, then parses this graph topology, resolves data dependencies, and executes the necessary deterministic clinical tools in a safe, isolated sandbox.
+
+### Core Engineering Improvements Checklist
+
+To implement this decentralized, plan-driven execution pattern, the following architectural upgrades must be introduced to the codebase:
+
+#### 1. Structured DAG Plan Blueprint (`src/cognition/schemas.py`)
+Define a strict, strongly-typed schema using Pydantic to govern the LLM compiler's output. The model must emit a clean JSON structural plan mapping execution nodes to strict array-driven dependencies:
+*   `TaskNode`: Contains a distinct `task_id`, targeted `tool_name`, and explicit runtime parameter kwargs.
+*   `ExecutionPlan`: Declares a flat list of `TaskNode` objects and a dependency dictionary tracking node execution constraints.
+
+#### 2. Centralized Clinical Tool Registry (`src/tools/registry.py`)
+Move away from implicit code executions by wrapping capabilities into stateless, individual tool classes executed exclusively by the central master handler:
+*   **Clinical Risk Calculator:** Runs pure algorithmic math formulas to compute formal medical risks (e.g., TIMI or GCS scores) from extracted integers, removing calculation tasks from the LLM.
+*   **EHR Document Summarizer:** Takes verbose medical history logs and extracts structural data segments using local context tokens.
+*   **Ontology Mapper Engine:** Resolves presentation strings directly to validated **SNOMED CT**, **ICD-10-CM**, and **RxNorm** code bases.
+*   **Guideline Vector Fetcher:** Connects directly to the Qdrant instance to isolate targeted disease parameters.
+*   **Drug-Drug Interaction Guard:** Verifies medication compatibility matrices before output generation.
+
+#### 3. State-Aware Task Context Memory (`src/memory/context.py`)
+Build a thread-safe data registry within the central executor to act as a shared context canvas during execution. The engine must support variable resolution strings (e.g., input values referencing upstream outputs like `"$ref: task_summarizer.extracted_vitals"`). The executor intercepts these tokens and dynamically resolves the variables prior to tool invocation.
+
+#### 4. Topological Execution Loop (`src/cognition/dag_executor.py`)
+Utilize Python's native `graphlib.TopologicalSorter` to parse the compiled JSON execution plan. The loop maps out linear dependencies, safely tracks task failures, and uses a concurrent thread or async pool to run independent tasks in parallel, maximizing local CPU throughput.
+
+#### 5. Grounded Cognitive Synthesis (`src/cognition/synthesis.py`)
+Establish a final completion step where the executor aggregates all tool runtime data arrays (the computed risk matrix, guidelines, and validated medical codes) into an immutable text frame. The orchestrator invokes the local model one final time to synthesize this data into an empathetic, clinically sound conversation string for the frontend user interface.
+
+---
+
 ## License
 
 This project is licensed under the **MIT License**. You are free to use, modify, and distribute this software. See the [LICENSE](LICENSE) file for full details.
