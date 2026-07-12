@@ -335,26 +335,49 @@ Access the systems via the following local allocations:
 
 ## Evolutionary Roadmap: Plan-Then-Execute (PTE) Architecture
 
-This repository serves as a high-performance baseline for localized, resource-constrained agentic execution. To transition from the current rigid, linear pipeline to a highly adaptive **Plan-Then-Execute (PTE)** framework, the architecture decouples high-level cognitive planning from low-level deterministic tool execution. 
+This repository serves as a high-performance baseline for localized, resource-constrained agentic execution. To transition from the current rigid, linear pipeline to a highly adaptive **Plan-Then-Execute (PTE)** framework, the architecture must decouple high-level cognitive planning from low-level deterministic tool execution.
 
 Under this paradigm, the Large Language Model (LLM) acts purely as a **Workflow Compiler** that ingests unstructured patient data and outputs an explicit Directed Acyclic Graph (DAG) plan. A **Central Tool Executor**, written in native Python, then parses this graph topology, resolves data dependencies, and executes the necessary deterministic clinical tools in a safe, isolated sandbox.
 
+---
+
+### Current Concurrency Limitations & Monolithic Bottlenecks
+
+While the proposed PTE architecture optimizes local resource tracking and introduces parallel task branches, the system as currently written remains an edge-optimized **Single-Node Monolith**. Before deploying this engine beyond a single-user test configuration, developers must account for the following architectural bottlenecks:
+
+1. **Ephemeral State Isolation (`EpisodicStore`):** Session history and conversational state tracking rely entirely on an in-memory, in-process Python dictionary (`dict`). This creates a shared-memory boundary that makes horizontal load balancing across multiple application instances impossible without instant state fragmentation.
+2. **CPU-Bound Inference Latency:** Running local GGUF models on a CPU core pool via `llama-cpp-server` restricts execution to **1 active user turn at a time**. A standard slow-path inference turn consumes 1.2s–2.5s of compute math to process reasoning and grammar formatting. Forcing concurrent users onto a single CPU split-cache degrades token-generation speeds past safe clinical triage tolerances.
+3. **In-Process Vector Storage:** The integrated Qdrant lookup operates locally within the host container memory space, limiting data availability, scale, and embedding context lengths to what fits within the immediate hardware RAM allocation profiles.
+4. **Fast-Path/Slow-Path Disparity:** The system scales exceptionally well on the Fast-Path (Step B - OPA Guardrails) because the emergency safety shield relies on compiled regular expressions running in native Python (`<30ms`). However, non-emergent messages dropping into the Slow-Path must queue sequentially for CPU model execution.
+
+---
+
+### Enterprise Distributed Scaling Path
+
+To transition this local baseline architecture into a resilient, horizontally scalable cloud infrastructure capable of supporting thousands of concurrent patients, three primary architectural migrations must be executed:
+
+* **Distributed State Persistence:** Swap out the local Python `dict` tracker for an external, high-availability distributed cache layer utilizing **Redis** or a relational **PostgreSQL** backend. This completely decouples user state from individual application containers, allowing an array of stateless FastAPI nodes behind a global load balancer to seamlessly process concurrent payload streams.
+* **High-Throughput Dedicated Inference Clusters:** Migrate token processing from local CPU fallback engines to dedicated GPU acceleration pods (such as an NVIDIA H100 or A100 instance cluster) managed by a specialized serving framework like **vLLM** or **SGLang**. Utilizing core features like *Continuous Batching*, *PagedAttention*, and *RadixAttention* allows the runtime to handle hundreds of complex JSON-constrained diagnostic generations simultaneously with near-zero latency degradation.
+* **Clustered Vector Operations:** Transition the localized container memory search to a dedicated, production-tier cloud cluster (e.g., Qdrant Cloud or a fully managed vector data layer). This scales guideline indexing capabilities to house entire medical textbook libraries while processing concurrent semantic retrieval requests in parallel.
+
+---
+
 ### Core Engineering Improvements Checklist
 
-To implement this decentralized, plan-driven execution pattern, the following architectural upgrades must be introduced to the codebase:
+To implement the decentralized, plan-driven execution pattern while paving the way for distributed compatibility, the following architectural upgrades must be introduced to the codebase:
 
 #### 1. Structured DAG Plan Blueprint (`src/cognition/schemas.py`)
 Define a strict, strongly-typed schema using Pydantic to govern the LLM compiler's output. The model must emit a clean JSON structural plan mapping execution nodes to strict array-driven dependencies:
-*   `TaskNode`: Contains a distinct `task_id`, targeted `tool_name`, and explicit runtime parameter kwargs.
-*   `ExecutionPlan`: Declares a flat list of `TaskNode` objects and a dependency dictionary tracking node execution constraints.
+* `TaskNode`: Contains a distinct `task_id`, targeted `tool_name`, and explicit runtime parameter kwargs.
+* `ExecutionPlan`: Declares a flat list of `TaskNode` objects and a dependency dictionary tracking node execution constraints.
 
 #### 2. Centralized Clinical Tool Registry (`src/tools/registry.py`)
 Move away from implicit code executions by wrapping capabilities into stateless, individual tool classes executed exclusively by the central master handler:
-*   **Clinical Risk Calculator:** Runs pure algorithmic math formulas to compute formal medical risks (e.g., TIMI or GCS scores) from extracted integers, removing calculation tasks from the LLM.
-*   **EHR Document Summarizer:** Takes verbose medical history logs and extracts structural data segments using local context tokens.
-*   **Ontology Mapper Engine:** Resolves presentation strings directly to validated **SNOMED CT**, **ICD-10-CM**, and **RxNorm** code bases.
-*   **Guideline Vector Fetcher:** Connects directly to the Qdrant instance to isolate targeted disease parameters.
-*   **Drug-Drug Interaction Guard:** Verifies medication compatibility matrices before output generation.
+* **Clinical Risk Calculator:** Runs pure algorithmic math formulas to compute formal medical risks (e.g., TIMI or GCS scores) from extracted integers, removing calculation tasks from the LLM.
+* **EHR Document Summarizer:** Takes verbose medical history logs and extracts structural data segments using local context tokens.
+* **Ontology Mapper Engine:** Resolves presentation strings directly to validated **SNOMED CT**, **ICD-10-CM**, and **RxNorm** code bases.
+* **Guideline Vector Fetcher:** Connects directly to the Qdrant instance to isolate targeted disease parameters.
+* **Drug-Drug Interaction Guard:** Verifies medication compatibility matrices before output generation.
 
 #### 3. State-Aware Task Context Memory (`src/memory/context.py`)
 Build a thread-safe data registry within the central executor to act as a shared context canvas during execution. The engine must support variable resolution strings (e.g., input values referencing upstream outputs like `"$ref: task_summarizer.extracted_vitals"`). The executor intercepts these tokens and dynamically resolves the variables prior to tool invocation.
@@ -421,7 +444,7 @@ mypy src/ --strict
 
 ### Testing Protocols & Performance Benchmarking
 
-Changes to the core execution loop must not regress pipeline latency or state machine integrity.
+Changes to the core execution loop must not regress pipeline latency, thread safety, or state machine integrity.
 
 - **Unit Testing:** Write descriptive assertions inside the `tests/` directory utilizing `pytest`. Ensure that your changes do not break existing context extraction parameters:
 
@@ -434,6 +457,8 @@ Changes to the core execution loop must not regress pipeline latency or state ma
 
 - **Latency Benchmarking:** If you modify components within Step B (OPA Guardrails) or Step D (Ontology Engine), you must profile the execution path. Run the local test suite on standard CPU parameters to verify that emergency short-circuit responses execute in <30ms.
 
+- **Stateless Tool Verification:** Any new tool added to the registry must be entirely stateless and thread-safe to ensure compatibility with both the local parallel DAG execution engine and future distributed cloud runtimes.
+
 ### Pull Request (PR) Submission Checklist
 
 When submitting a Pull Request, ensure your description layout addresses the following criteria:
@@ -442,6 +467,7 @@ When submitting a Pull Request, ensure your description layout addresses the fol
 - [ ] **Validation Pass:** `ruff format`, `ruff check`, and `mypy --strict` execution profiles all report a 100% success rate with zero errors.
 - [ ] **Test Coverage:** New logic paths, tool extensions, or heuristic custom fallbacks are fully covered by deterministic test fixtures.
 - [ ] **State Safety:** Verified that the changes introduce no conversational drift or broken loop vulnerabilities inside the finite state machine tracking.
+- [ ] **Concurrency & Thread Safety:** Verified that tools do not read or write to shared global variables without explicit thread-safe locks, maintaining readiness for distributed scaling.
 - [ ] **Documentation Sync:** Corresponding structural specs in `SPEC.md` or local module docstrings are updated to reflect configuration edits or schema expansions.
 
 ---
