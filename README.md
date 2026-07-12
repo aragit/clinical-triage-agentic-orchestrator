@@ -24,7 +24,11 @@
 
 ---
 
-Operating entirely on consumer-grade hardware (Intel i5 CPU, 16GB RAM) without external cloud APIs or GPU dependencies, this system implements a **deterministic-to-probabilistic execution boundary**. By combining an isolated policy guardrail, real-time medical ontology extraction (**SNOMED CT / ICD-10-CM**), an in-memory hybrid vector database, an atomic Finite State Machine (FSM), and grammar-constrained LLM decoding, this architecture guarantees safety, eliminates hallucination risks for critical presentations, and maintains a zero-latency fast-path for medical emergencies.
+## 🎯 Design Philosophy & Architectural Context
+
+This repository is built as an **edge-native, privacy-first, zero-dependency reference architecture**. 
+
+Rather than relying on brittle cloud abstractions or cost-intensive GPU infrastructure, this engine is intentionally engineered to run a fully validated, clinical-grade triage loop entirely on **local consumer-grade CPU resources**. It serves as a highly optimized, blueprint showcasing how to bridge fast-path symbolic guardrails with slow-path quantized neural models—engineered explicitly for local deployment constraints where cloud communication, latency budgets, and absolute data privacy are non-negotiable.
 
 ---
 
