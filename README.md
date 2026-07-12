@@ -24,7 +24,7 @@
 
 ---
 
-## 🎯 Design Philosophy & Architectural Context
+## Design Philosophy & Architectural Context
 
 This repository is built as an **edge-native, privacy-first, zero-dependency reference architecture**. 
 
