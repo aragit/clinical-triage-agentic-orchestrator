@@ -355,6 +355,85 @@ Establish a final completion step where the executor aggregates all tool runtime
 
 ---
 
+## Contributing & Development Standards
+
+We welcome high-quality contributions from the open-source and clinical AI engineering communities. Because this orchestrator governs a safety-critical clinical triage domain, all contributions must uphold strict deterministic boundaries, architectural encapsulation, and performance budgets (e.g., maintaining sub-30ms latencies for emergency pathways on low-compute local hardware).
+
+Please review our strict development guidelines before opening an issue or submitting a Pull Request.
+
+---
+
+### Git Branching Strategy & Workflow
+
+We employ a structured feature-branch workflow. Direct commits to the `main` or `master` branches are restricted.
+
+1. **Fork & Clone:** Fork the repository and create your feature branch from the latest `main`:
+   ```bash
+   git checkout -b feat/your-feature-name
+   # For bug fixes: git checkout -b fix/issue-description
+   # For refactoring: git checkout -b refactor/target-module
+   ```
+
+2. **Conventional Commits:** We enforce the [Conventional Commits](https://www.conventionalcommits.org/) specification. Every commit message must cleanly signal intention and module context. Examples:
+
+   ```
+   feat(cognition): integrate pydantic-driven dag blueprint validator
+
+   fix(ui): align raw json viewer inside widescreen layout containers
+
+   docs(readme): add detailed implementation roadmap for plan-then-execute evolution
+
+   perf(core): optimize compiled regex evaluation network in opa fallback module
+   ```
+
+### Code Style, Linting & Static Analysis
+
+To maintain code consistency across pipelines, we enforce formatting and static typing checks. Prior to submitting code, install and run our linting suite:
+
+```bash
+pip install ruff mypy
+```
+
+**Formatting & Linting (`ruff`):** We replace Black, Flake8, and isort with `ruff`. Ensure your code complies with our ruleset:
+
+```bash
+ruff format src/
+ruff check src/ --fix
+```
+
+**Static Type Verification (`mypy`):** Every public function signature must be fully typed (no loose `Any` declarations unless explicitly necessary for dynamic JSON payload dictionary mapping).
+
+```bash
+mypy src/ --strict
+```
+
+### Testing Protocols & Performance Benchmarking
+
+Changes to the core execution loop must not regress pipeline latency or state machine integrity.
+
+- **Unit Testing:** Write descriptive assertions inside the `tests/` directory utilizing `pytest`. Ensure that your changes do not break existing context extraction parameters:
+
+  ```bash
+  pip install pytest pytest-asyncio
+  pytest tests/
+  ```
+
+- **FSM State Verification:** Ensure your code modifications do not introduce illegal state mutations inside `src/memory/episodic_state.py`. Every transaction must follow the 7 allowed clinical state nodes.
+
+- **Latency Benchmarking:** If you modify components within Step B (OPA Guardrails) or Step D (Ontology Engine), you must profile the execution path. Run the local test suite on standard CPU parameters to verify that emergency short-circuit responses execute in <30ms.
+
+### Pull Request (PR) Submission Checklist
+
+When submitting a Pull Request, ensure your description layout addresses the following criteria:
+
+- [ ] **Architectural Alignment:** Does this code conform to our local, CPU-native, self-contained constraint? (e.g., No external cloud API calls, no heavy framework wrappers like LangChain/LangGraph).
+- [ ] **Validation Pass:** `ruff format`, `ruff check`, and `mypy --strict` execution profiles all report a 100% success rate with zero errors.
+- [ ] **Test Coverage:** New logic paths, tool extensions, or heuristic custom fallbacks are fully covered by deterministic test fixtures.
+- [ ] **State Safety:** Verified that the changes introduce no conversational drift or broken loop vulnerabilities inside the finite state machine tracking.
+- [ ] **Documentation Sync:** Corresponding structural specs in `SPEC.md` or local module docstrings are updated to reflect configuration edits or schema expansions.
+
+---
+
 ## License
 
 This project is licensed under the **MIT License**. You are free to use, modify, and distribute this software. See the [LICENSE](LICENSE) file for full details.
