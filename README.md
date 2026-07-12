@@ -28,7 +28,7 @@
 
 This repository is built as an **edge-native, privacy-first, zero-dependency reference architecture**. 
 
-Rather than relying on brittle cloud abstractions or cost-intensive GPU infrastructure, this engine is intentionally engineered to run a fully validated, clinical-grade triage loop entirely on **local consumer-grade CPU resources**. It serves as a highly optimized, blueprint showcasing how to bridge fast-path symbolic guardrails with slow-path quantized neural models—engineered explicitly for local deployment constraints where cloud communication, latency budgets, and absolute data privacy are non-negotiable.
+This engine is intentionally engineered to run a fully validated, clinical-grade triage loop entirely on **local consumer-grade CPU resources**. It serves as a highly optimized, blueprint showcasing how to bridge fast-path symbolic guardrails with slow-path quantized neural models—engineered explicitly for local deployment constraints where cloud communication, latency budgets, and absolute data privacy are non-negotiable.
 
 ---
 
