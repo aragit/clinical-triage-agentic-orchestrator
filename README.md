@@ -4,6 +4,18 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Backend-FastAPI%20%2B%20Uvicorn-blue.svg" alt="Backend Framework: FastAPI + Uvicorn">
+  <img src="https://img.shields.io/badge/Frontend-Streamlit-FF4B4B.svg" alt="Frontend: Streamlit">
+  <img src="https://img.shields.io/badge/LLM%20Inference-llama--cpp--python-yellow.svg" alt="LLM Inference: llama-cpp-python">
+  <img src="https://img.shields.io/badge/Structured%20Output-instructor%20%2B%20Pydantic-purple.svg" alt="Structured Output: instructor + Pydantic">
+  <img src="https://img.shields.io/badge/Model-Gemma%203n%20E4B%20Q4__K__M-red.svg" alt="Model: Gemma 3n E4B Q4_K_M">
+  <img src="https://img.shields.io/badge/Vector%20Store-Qdrant%20Hybrid-lightgrey.svg" alt="Vector Store: Qdrant Hybrid">
+  <img src="https://img.shields.io/badge/Policy%20Engine-OPA--Style%20Guardrails-orange.svg" alt="Policy Engine: OPA-Style Guardrails">
+  <img src="https://img.shields.io/badge/Clinical%20NLP-SNOMED%20CT%20%2F%20ICD--10--CM-blueviolet.svg" alt="Clinical NLP: SNOMED CT / ICD-10-CM">
+  <img src="https://img.shields.io/badge/State%20Management-Atomic%20FSM%207%20Nodes-success.svg" alt="State Management: Atomic FSM 7 Nodes">
+  <img src="https://img.shields.io/badge/Async%20Processing-FastAPI%20BackgroundTasks-informational.svg" alt="Async Processing: FastAPI BackgroundTasks">
+  <img src="https://img.shields.io/badge/Containerization-Docker%20%2B%20Compose-2496ED.svg" alt="Containerization: Docker + Compose">
+  <img src="https://img.shields.io/badge/Language-Python%203.12%2B-3776AB.svg" alt="Language: Python 3.12+">
   <img src="https://img.shields.io/badge/Production--Grade-Verified-brightgreen.svg" alt="Production Grade">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/Local--Architecture-CPU--Native-blue.svg" alt="Local Architecture: CPU Native">
